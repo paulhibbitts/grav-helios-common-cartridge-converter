@@ -21,7 +21,9 @@ class CourseHubBuilder
     private bool   $includeResources;
     private bool   $includeSyllabus;
     private bool   $portableMarkdown;
-    private string $courseBase;           // e.g. "pages/my-course-2025"
+    private string $courseBase;           // e.g. "pages/my-course-2025", or "pages" for Open Course Hub
+    private string $destination;          // 'helios', 'open-course-hub' or 'open-multicourse-hub'
+    private string $modulesFolder;        // "30.modules", or "07.modules" for Open Course Hub
     private array $pendingImages   = []; // ['pageFolder', 'filename', 'localPath'|null, 'url'|null]
     private array $imageData       = []; // zipPath => binary string (populated by downloadPendingImages)
     private int   $imageFailures   = 0;
@@ -41,7 +43,8 @@ class CourseHubBuilder
         bool $includeEssentials = true,
         bool $includeResources = true,
         bool $includeSyllabus = true,
-        bool $portableMarkdown = false
+        bool $portableMarkdown = false,
+        string $destination = 'helios'
     ) {
         $this->parser              = $parser;
         $this->converter           = new ContentConverter($parser->dir, $skipImageDownload, $skipFiles, $portableMarkdown);
@@ -52,7 +55,27 @@ class CourseHubBuilder
         $this->includeResources    = $includeResources;
         $this->includeSyllabus     = $includeSyllabus;
         $this->portableMarkdown    = $portableMarkdown;
-        $this->courseBase          = 'pages/' . $parser->courseSlug;
+
+        // Where the course will go. Standard Markdown is for any Grav site, so it always keeps
+        // the course in its own folder, as for Helios
+        $this->destination = 'helios';
+        if ($destination === 'open-course-hub' || $destination === 'open-multicourse-hub') {
+            $this->destination = $destination;
+        }
+        if ($portableMarkdown) {
+            $this->destination = 'helios';
+        }
+
+        // An Open Course Hub site keeps its own weekly home page, schedule and sidebar, so only the
+        // modules are exported, as a Modules folder to add to the site: no course folder (so page
+        // addresses have none either), and the same folder name as the skeleton's Modules sample
+        if ($this->destination === 'open-course-hub') {
+            $this->courseBase    = 'pages';
+            $this->modulesFolder = '07.modules';
+        } else {
+            $this->courseBase    = 'pages/' . $parser->courseSlug;
+            $this->modulesFolder = '30.modules';
+        }
     }
 
     // Applies the opt-in "clean up numbered titles" setting. See
@@ -99,12 +122,19 @@ class CourseHubBuilder
         }
 
         $this->buildCourseMd();
+        $this->buildHeaderImagePage();
         $this->buildModules();
-        if ($this->includeEssentials) $this->buildEssentials();
-        if ($this->includeResources)  $this->buildResources();
-        // Always build syllabus when source content exists; flag only suppresses the stub.
         $hasSyllabusContent = $this->parser->syllabusHtml && strlen(strip_tags($this->parser->syllabusHtml)) >= 10;
-        if ($this->includeSyllabus || $hasSyllabusContent) $this->buildSyllabus();
+        if ($this->destination === 'open-course-hub') {
+            // Only the modules are exported, so there's no Essentials or Resources page; any
+            // syllabus content goes in its own folder, to copy into the site's Syllabus page
+            if ($hasSyllabusContent) $this->buildSyllabusForCopying();
+        } else {
+            if ($this->includeEssentials) $this->buildEssentials();
+            if ($this->includeResources)  $this->buildResources();
+            // Always build syllabus when source content exists; flag only suppresses the stub.
+            if ($this->includeSyllabus || $hasSyllabusContent) $this->buildSyllabus();
+        }
 
         $this->downloadPendingImages();
         $this->dropFailedImageReferences();
@@ -124,16 +154,78 @@ class CourseHubBuilder
         // meaning without the plugin, so Standard Markdown mode omits it entirely.
         if ($this->portableMarkdown) return;
 
+        // An Open Course Hub site is the course itself, so it has no course file
+        if ($this->destination === 'open-course-hub') return;
+
+        // An Open MultiCourse Hub course uses subsite.md: its title and description on the
+        // course list, and the page its address opens (Home). visible: false keeps the course
+        // itself out of the site's menu
+        if ($this->destination === 'open-multicourse-hub') {
+            $title = $this->parser->courseTitle;
+            if (!$title) {
+                $title = Helpers::titleFromSlug($this->parser->courseSlug);
+            }
+            $yaml = "---\ntitle: '" . Helpers::yamlEscape($title) . "'\npublished: true\nvisible: false\n"
+                  . "subsite_list_description: ''\nsubsite_home: home\n---\n\n"
+                  . "Use the Admin Panel Editor (or page frontmatter) to set this course's description on the course list.\n";
+            $this->addFile("$this->courseBase/subsite.md", $yaml);
+            return;
+        }
+
         $desc = $this->parser->courseTitle ? "\ndescription: '" . Helpers::yamlEscape($this->parser->courseTitle) . "'" : '';
         $body = "Use the Admin Panel Editor (or page frontmatter) to set the icon, description, and published status of this course's card on the Courses homepage.";
         $yaml = "---\npublished: true\nroutable: false$desc\n---\n\n$body\n";
         $this->addFile("$this->courseBase/course.md", $yaml);
     }
 
+    // Bootstrap4 Open Matter shows the image in a headerimage folder above the menu (and, in an
+    // Open MultiCourse Hub, on the course's card), so the course image goes there. The image
+    // file itself is added in createZip()
+    private function buildHeaderImagePage(): void
+    {
+        // Helios uses course_image instead, and an Open Course Hub site keeps its own header image
+        if ($this->destination !== 'open-multicourse-hub') return;
+        if (!$this->parser->courseImagePath) return;
+        if (!file_exists($this->parser->courseImagePath)) return;
+
+        $yaml = "---\ntitle: 'Header Image'\nvisible: false\nroutable: false\n---\n"
+              . "File to be used for the header image above the menubar.\n";
+        $this->addFile("$this->courseBase/headerimage/default.md", $yaml);
+    }
+
+    // The folder the course image goes in: headerimage for an Open MultiCourse Hub course, or
+    // course_image for Helios. An Open Course Hub export has none (empty), as the site keeps its own
+    private function courseImageFolder(): string
+    {
+        if ($this->destination === 'open-course-hub') {
+            return '';
+        }
+        if ($this->destination === 'open-multicourse-hub') {
+            return "$this->courseBase/headerimage";
+        }
+        return "$this->courseBase/course_image";
+    }
+
     private function buildModules(): void
     {
         $p       = $this->parser;
         $modules = $p->modules;
+
+        // Open Course Hub: every module (including an intro or "Welcome" module, which would
+        // otherwise become the course's Home page) goes in the Modules folder, as a card on the
+        // Modules page, as in the skeleton's Modules sample
+        if ($this->destination === 'open-course-hub') {
+            $this->buildModuleListing();
+            $modN = 1;
+            foreach ($modules as $mod) {
+                if ($this->isBeltEarned($mod)) {
+                    continue;
+                }
+                $this->buildModuleChapter($mod, $modN);
+                $modN++;
+            }
+            return;
+        }
 
         if (empty($modules)) {
             $this->buildHomePage(null);
@@ -229,16 +321,20 @@ class CourseHubBuilder
 
     private function buildModuleListing(): void
     {
-        $base = "$this->courseBase/30.modules";
+        $base = "$this->courseBase/$this->modulesFolder";
         $fm   = $this->portableMarkdown
             ? "---\ntitle: Modules\n---\n"
             : "---\ntitle: Modules\npublished: true\ndescription: 'Below are the modules available for this course.'\ntaxonomy:\n    category: docs\nnavigation:\n    toc_position: hidden\n---\n";
+        // an Open Course Hub export has no Home page, so the conversion notice goes on the Modules page
+        if ($this->destination === 'open-course-hub') {
+            $fm .= "\n" . $this->conversionNotice();
+        }
         $this->addFile("$base/module.md", $fm);
     }
 
     private function buildSingleModuleFlat(array $mod): void
     {
-        $base = "$this->courseBase/30.modules";
+        $base = "$this->courseBase/$this->modulesFolder";
 
         // Use the module's landing WikiPage content in course-page.md itself
         $items       = $mod['items'];
@@ -269,9 +365,9 @@ class CourseHubBuilder
     private function buildModuleChapter(array $mod, int $n): void
     {
         $modSlug  = Helpers::slugify($this->cleanTitle($mod['title']));
-        $modSlug  = $this->uniqueSlug("$this->courseBase/30.modules", $modSlug);
+        $modSlug  = $this->uniqueSlug("$this->courseBase/$this->modulesFolder", $modSlug);
         $modFolder = Helpers::numberedFolder($n, $modSlug);
-        $base      = "$this->courseBase/30.modules/$modFolder";
+        $base      = "$this->courseBase/$this->modulesFolder/$modFolder";
 
         $items = $mod['items'];
         [$landingItem, $childItems] = $this->splitItems($mod);
@@ -355,11 +451,19 @@ class CourseHubBuilder
             $filePath = $item['filePath'] ?? '';
             if ($filePath && !$this->skipFiles) {
                 $filename = basename($filePath);
-                $zipPath  = "$this->courseBase/files/$filename";
+                if ($this->destination === 'open-course-hub') {
+                    // Only the Modules folder is copied into an Open Course Hub site, so the
+                    // files go inside it: pages/07.modules/files/, 2 levels up from the page
+                    $zipPath  = "$this->courseBase/$this->modulesFolder/files/$filename";
+                    $linkPath = "../../files/$filename";
+                } else {
+                    // Child page is at {courseBase}/30.modules/{mod}/{child}/course-page.md
+                    // files/ is 3 levels up from child dir
+                    $zipPath  = "$this->courseBase/files/$filename";
+                    $linkPath = "../../../files/$filename";
+                }
                 $this->attachmentFiles[$zipPath] = $filePath;
-                // Child page is at {courseBase}/30.modules/{mod}/{child}/course-page.md
-                // files/ is 3 levels up from child dir
-                $body = "[$cleanedTitle](../../../files/$filename)\n";
+                $body = "[$cleanedTitle]($linkPath)\n";
             } else {
                 $body = "> **$cleanedTitle** — attached file not included (see conversion-notes.txt)\n";
             }
@@ -412,6 +516,15 @@ class CourseHubBuilder
         }
     }
 
+    // For Open Course Hub: the syllabus content, in a syllabus folder outside pages/, to copy
+    // into the site's own Syllabus page (its images are in the same folder)
+    private function buildSyllabusForCopying(): void
+    {
+        $base = 'syllabus';
+        $body = $this->convertAndCollectImages($this->parser->syllabusHtml, $base);
+        $this->addFile("$base/course-page.md", $this->pageFrontmatter('Syllabus', [], true) . trim($body) . "\n");
+    }
+
     private function buildResources(): void
     {
         $base = "$this->courseBase/40.resources";
@@ -440,8 +553,10 @@ class CourseHubBuilder
         $lines[] = '  Code:    ' . ($p->courseCode  ?: '(none)');
         $lines[] = '  License: ' . ($p->license     ?: '(not specified)');
         if ($p->licenseUrl) $lines[] = '  License URL: ' . $p->licenseUrl;
-        if ($p->courseImagePath) {
-            $lines[] = '  Course image: ' . $this->courseBase . '/course_image/' . basename($p->courseImagePath);
+        if ($p->courseImagePath && $this->courseImageFolder() === '') {
+            $lines[] = '  Course image: not included (the Open Course Hub site keeps its own header image)';
+        } elseif ($p->courseImagePath) {
+            $lines[] = '  Course image: ' . $this->courseImageFolder() . '/' . basename($p->courseImagePath);
         } elseif ($p->courseImageUrl) {
             $lines[] = '  Course image: ' . $p->courseImageUrl . ' (external URL — not included in ZIP)';
         }
@@ -483,7 +598,26 @@ class CourseHubBuilder
         $lines[] = '';
 
         $addHeader('Next Steps');
-        if ($this->portableMarkdown) {
+        if ($this->destination === 'open-course-hub') {
+            $lines[] = '  1. Copy the 07.modules folder from inside the extracted pages folder into';
+            $lines[] = '     your Open Course Hub site\'s user/pages/ directory (replacing the sample';
+            $lines[] = '     Modules folder, if your site has one)';
+            if (isset($this->files['syllabus/course-page.md'])) {
+                $lines[] = '  2. The course syllabus is in the syllabus folder: copy its content (and any';
+                $lines[] = '     images) into your site\'s Syllabus page';
+            } else {
+                $lines[] = '  2. (No syllabus content was found to copy)';
+            }
+            $lines[] = '  3. For the "On this page" list on module pages, install the Page TOC plugin';
+            $lines[] = '  4. Review this file for any warnings or manual fixes needed';
+        } elseif ($this->destination === 'open-multicourse-hub') {
+            $lines[] = '  1. Copy the course folder from inside the extracted pages folder into';
+            $lines[] = '     your Open MultiCourse Hub site\'s user/pages/ directory';
+            $lines[] = '  2. To set its place in the course list, add a number to the front of the';
+            $lines[] = '     folder name (such as 05.), and set its description in subsite.md';
+            $lines[] = '  3. For the "On this page" list on module pages, install the Page TOC plugin';
+            $lines[] = '  4. Review this file for any warnings or manual fixes needed';
+        } elseif ($this->portableMarkdown) {
             $lines[] = '  1. Copy the course folder from inside the extracted pages folder into';
             $lines[] = '     any Grav site\'s user/pages/ directory (no Helios plugin required),';
             $lines[] = '     or adapt it for another Markdown-based platform';
@@ -496,15 +630,30 @@ class CourseHubBuilder
         $lines[] = '';
 
         $addHeader('Conversion Settings');
+        $destinationName = 'Grav Helios Course Hub';
+        if ($this->destination === 'open-course-hub') {
+            $destinationName = 'Open Course Hub';
+        }
+        if ($this->destination === 'open-multicourse-hub') {
+            $destinationName = 'Open MultiCourse Hub';
+        }
+        if ($this->portableMarkdown) {
+            $destinationName = 'any Grav site';
+        }
+        $lines[] = '  Destination:     ' . $destinationName;
         $lines[] = '  Format:          ' . ($this->portableMarkdown
             ? 'Standard Markdown (no Helios shortcodes)'
-            : 'Grav Helios Course Hub (shortcodes + full frontmatter)');
+            : 'Course hub (shortcodes + full frontmatter)');
         $lines[] = '  Attached files:  ' . ($this->skipFiles ? 'skipped' : 'included in ZIP under files/');
         $lines[] = '  Image download:  ' . ($this->skipImageDownload ? 'skipped — images kept as remote URLs' : 'downloaded and bundled in ZIP');
         $lines[] = '  Numbered titles: ' . ($this->stripTitleNumbering ? 'cleaned up (leading numbering stripped)' : 'left as-is');
-        $lines[] = '  Essentials page: ' . ($this->includeEssentials ? 'included' : 'not included');
-        $lines[] = '  Resources page:  ' . ($this->includeResources ? 'included' : 'not included');
-        $lines[] = '  Syllabus page:   ' . ($this->includeSyllabus ? 'included' : 'not included');
+        if ($this->destination === 'open-course-hub') {
+            $lines[] = '  Pages:           Modules only (no Home, Essentials, Resources or Syllabus page)';
+        } else {
+            $lines[] = '  Essentials page: ' . ($this->includeEssentials ? 'included' : 'not included');
+            $lines[] = '  Resources page:  ' . ($this->includeResources ? 'included' : 'not included');
+            $lines[] = '  Syllabus page:   ' . ($this->includeSyllabus ? 'included' : 'not included');
+        }
         $lines[] = '';
 
         if (!empty($this->warnings)) {
@@ -921,9 +1070,9 @@ class CourseHubBuilder
 
         // Include course image as a local file if available
         $imgPath = $this->parser->courseImagePath;
-        if ($imgPath && file_exists($imgPath)) {
+        if ($imgPath && file_exists($imgPath) && $this->courseImageFolder() !== '') {
             $filename = basename($imgPath);
-            $zip->addFile($imgPath, "$this->courseBase/course_image/$filename");
+            $zip->addFile($imgPath, $this->courseImageFolder() . "/$filename");
         }
 
         $zip->close();

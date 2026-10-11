@@ -54,6 +54,16 @@ $includeEssentials   = !empty($_POST['include_essentials']);
 $includeResources    = !empty($_POST['include_resources']);
 $includeSyllabus     = !empty($_POST['include_syllabus']);
 $portableMarkdown    = !empty($_POST['portable_markdown']);
+
+// Where the course will go: Open Course Hub (a site for one course, so no course folder),
+// Open MultiCourse Hub, or Grav Helios Course Hub (both keep the course in its own folder).
+// With no destination sent (an older copy of the form), the output stays as it was before, for Helios
+$destination = 'helios';
+if (isset($_POST['destination'])) {
+    if ($_POST['destination'] === 'open-course-hub' || $_POST['destination'] === 'open-multicourse-hub') {
+        $destination = $_POST['destination'];
+    }
+}
 $tmpDir            = sys_get_temp_dir() . '/cc_' . uniqid();
 mkdir($tmpDir, 0700, true);
 
@@ -101,7 +111,7 @@ $slugOverride = trim($_POST['course_slug'] ?? '');
 if ($slugOverride) {
     $parser->courseSlug = preg_replace('/[^a-z0-9-]/', '-', strtolower($slugOverride));
 }
-$builder = new CourseHubBuilder($parser, $skipFiles, $skipImageDownload, $stripTitleNumbering, $includeEssentials, $includeResources, $includeSyllabus, $portableMarkdown);
+$builder = new CourseHubBuilder($parser, $skipFiles, $skipImageDownload, $stripTitleNumbering, $includeEssentials, $includeResources, $includeSyllabus, $portableMarkdown, $destination);
 $zipPath = $builder->build();
 
 cleanup($tmpDir);

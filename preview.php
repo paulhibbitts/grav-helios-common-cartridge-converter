@@ -45,6 +45,16 @@ $includeResources    = !empty($_POST['include_resources']);
 $includeSyllabus     = !empty($_POST['include_syllabus']);
 $portableMarkdown    = !empty($_POST['portable_markdown']);
 
+// Where the course will go: Open Course Hub (a site for one course, so no course folder),
+// Open MultiCourse Hub, or Grav Helios Course Hub (both keep the course in its own folder).
+// With no destination sent (an older copy of the form), the output stays as it was before, for Helios
+$destination = 'helios';
+if (isset($_POST['destination'])) {
+    if ($_POST['destination'] === 'open-course-hub' || $_POST['destination'] === 'open-multicourse-hub') {
+        $destination = $_POST['destination'];
+    }
+}
+
 $tmpDir = sys_get_temp_dir() . '/cc_preview_' . uniqid();
 mkdir($tmpDir, 0700, true);
 
@@ -79,7 +89,7 @@ try {
 
     $builder = new CourseHubBuilder(
         $parser, $skipFiles, $skipImageDownload, $stripTitleNumbering,
-        $includeEssentials, $includeResources, $includeSyllabus, $portableMarkdown
+        $includeEssentials, $includeResources, $includeSyllabus, $portableMarkdown, $destination
     );
     $zipPath = $builder->build();
     @unlink($zipPath); // preview only needs the in-memory pages, not the zip file itself
@@ -177,7 +187,7 @@ function collectPreviewPages(array $files, array $imageData, int $minLength): ar
 
     $candidatesByModule = [];
     foreach ($files as $path => $content) {
-        if (!str_contains($path, '/30.modules/') || !str_ends_with($path, 'course-page.md')) {
+        if (!preg_match('#/\d+\.modules/#', $path) || !str_ends_with($path, 'course-page.md')) { // 30.modules, or 07.modules for Open Course Hub
             continue;
         }
 
@@ -322,6 +332,6 @@ function stripFrontmatter(string $pageContent): string
 //      "pages/course/30.modules/course-page.md"                      -> "_flat_landing" (single-module courses, no subfolder)
 function moduleGroupFromPath(string $path): string
 {
-    preg_match('#/30\.modules/([^/]+)/#', $path, $moduleMatch);
+    preg_match('#/\d+\.modules/([^/]+)/#', $path, $moduleMatch);
     return $moduleMatch[1] ?? '_flat_landing';
 }
