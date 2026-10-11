@@ -29,6 +29,7 @@ class CourseHubBuilder
     private int   $attachmentCount  = 0;
     private array $slugToRoute      = []; // Canvas wiki-page slug => Grav route, built as pages are created;
                                            // used to resolve $WIKI_REFERENCE$ links at the end of build()
+    private array $usedSlugs        = []; // parent folder => the page slugs already used in it (see uniqueSlug())
 
     private static array $introKeywords = ['intro', 'introduction', 'welcome', 'how to use', 'getting started', 'about'];
 
@@ -268,6 +269,7 @@ class CourseHubBuilder
     private function buildModuleChapter(array $mod, int $n): void
     {
         $modSlug  = Helpers::slugify($this->cleanTitle($mod['title']));
+        $modSlug  = $this->uniqueSlug("$this->courseBase/30.modules", $modSlug);
         $modFolder = Helpers::numberedFolder($n, $modSlug);
         $base      = "$this->courseBase/30.modules/$modFolder";
 
@@ -333,6 +335,7 @@ class CourseHubBuilder
             ? preg_replace('/\.[a-zA-Z0-9]{2,5}$/', '', $cleanedTitle)
             : $cleanedTitle;
         $slug      = Helpers::slugify($titleForSlug);
+        $slug      = $this->uniqueSlug($moduleBase, $slug);
         $folder    = Helpers::numberedFolder($n, $slug);
         $path      = "$moduleBase/$folder/course-page.md";
         $title   = Helpers::yamlEscape($cleanedTitle);
@@ -579,12 +582,49 @@ class CourseHubBuilder
         $this->slugToRoute[$slug] = $this->zipPathToRoute($zipPath);
     }
 
+    // Turn a page's file path in the zip into its address on the site, for links between pages.
+    // For example, pages/my-course/30.modules/01.week-1/course-page.md becomes /my-course/modules/week-1:
+    // the course folder stays, as it's part of the course's addresses, and the page file name and
+    // the folder numbers are left out, as Grav leaves them out of page addresses.
     private function zipPathToRoute(string $zipPath): string
     {
-        $path = preg_replace('#^pages/[^/]+/#', '', $zipPath);
-        $path = preg_replace('#/(?:doc|chapter|course)\.md$#', '', $path);
-        $segments = array_map(fn($s) => preg_replace('/^\d+\./', '', $s), explode('/', $path));
+        // Step 1: the page's folder, without "pages/" at the start or the file name at the end
+        $path = preg_replace('#^pages/#', '', $zipPath);
+        $path = dirname($path);
+
+        // Step 2: remove the number from the start of each folder name (01.week-1 -> week-1)
+        $segments = [];
+        foreach (explode('/', $path) as $folder) {
+            $segments[] = preg_replace('/^\d+\./', '', $folder);
+        }
+
         return '/' . implode('/', $segments);
+    }
+
+    // Grav gives each page an address from its folder name without the number, so two pages
+    // called "Instructions" in the same module (01.instructions and 03.instructions) would share
+    // one address, and only one of them could be reached. This keeps each page's slug unique
+    // within its parent folder by adding a number to repeats: instructions, instructions-2, instructions-3.
+    private function uniqueSlug(string $parentFolder, string $slug): string
+    {
+        // a title with no letters or numbers gives an empty slug, so use "page" instead
+        if ($slug === '') {
+            $slug = 'page';
+        }
+
+        if (!isset($this->usedSlugs[$parentFolder])) {
+            $this->usedSlugs[$parentFolder] = [];
+        }
+
+        $uniqueSlug = $slug;
+        $count = 2;
+        while (in_array($uniqueSlug, $this->usedSlugs[$parentFolder], true)) {
+            $uniqueSlug = $slug . '-' . $count;
+            $count++;
+        }
+
+        $this->usedSlugs[$parentFolder][] = $uniqueSlug;
+        return $uniqueSlug;
     }
 
     // Substitute %%WIKIREF:slug%% placeholders (emitted by ContentConverter for
