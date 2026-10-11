@@ -450,18 +450,31 @@ class CourseHubBuilder
         } elseif ($item['type'] === 'Attachment') {
             $filePath = $item['filePath'] ?? '';
             if ($filePath && !$this->skipFiles) {
-                $filename = basename($filePath);
+                // Grav reads "name:value" in an address as a parameter (as in /chromeless:true),
+                // so a file name with a colon could never be opened; a hyphen is used instead
+                $filename = str_replace(':', '-', basename($filePath));
+
+                // Step 1: the folder the files go in. Only the Modules folder is copied into an
+                // Open Course Hub site, so there the files go inside it (pages/07.modules/files/);
+                // otherwise they're in the course folder (pages/my-course/files/)
                 if ($this->destination === 'open-course-hub') {
-                    // Only the Modules folder is copied into an Open Course Hub site, so the
-                    // files go inside it: pages/07.modules/files/, 2 levels up from the page
-                    $zipPath  = "$this->courseBase/$this->modulesFolder/files/$filename";
-                    $linkPath = "../../files/$filename";
+                    $filesParent = "$this->courseBase/$this->modulesFolder";
                 } else {
-                    // Child page is at {courseBase}/30.modules/{mod}/{child}/course-page.md
-                    // files/ is 3 levels up from child dir
-                    $zipPath  = "$this->courseBase/files/$filename";
-                    $linkPath = "../../../files/$filename";
+                    $filesParent = $this->courseBase;
                 }
+                $zipPath = "$filesParent/files/$filename";
+
+                // Step 2: the link, going up one level for each folder between the files' folder
+                // and this page: 3 for a page in a module (30.modules/01.mod/01.page), but 2 for a
+                // page under Home (10.home/01.page) or in an Open Course Hub module (01.mod/01.page)
+                $pageFolder   = dirname($path);
+                $foldersBelow = explode('/', substr($pageFolder, strlen($filesParent) + 1));
+                $linkPath     = str_repeat('../', count($foldersBelow)) . 'files/';
+
+                // Step 3: spaces and other characters in a file name would break the Markdown
+                // link, so they're encoded (a space becomes %20)
+                $linkPath .= rawurlencode($filename);
+
                 $this->attachmentFiles[$zipPath] = $filePath;
                 $body = "[$cleanedTitle]($linkPath)\n";
             } else {
