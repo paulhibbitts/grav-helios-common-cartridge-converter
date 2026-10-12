@@ -31,14 +31,28 @@ class Helpers
         return sprintf('%02d', $n) . '.' . $slug;
     }
 
-    // Derive a short description from plain text (first sentence, ≤120 chars)
+    // Derive a card description from plain text: up to about 300 characters, ending at a whole
+    // word with "…" when shortened. It's longer than a card usually shows, as the course hub's own
+    // setting decides how many lines appear (2, 3, or no limit). Counts characters, not bytes
+    // (mb_ functions), so an accented letter or emoji is never cut in half
     public static function shortDescription(string $text): string
     {
+        $maxLength = 300;
         $text = trim(preg_replace('/\s+/', ' ', $text));
-        if (strlen($text) <= 120) return $text;
-        $pos = strpos($text, '. ');
-        if ($pos !== false && $pos < 120) return substr($text, 0, $pos + 1);
-        return substr($text, 0, 117) . '...';
+        if (mb_strlen($text) <= $maxLength) {
+            return $text;
+        }
+
+        // Step 1: cut to the maximum length, then back to the last space, so no word is split
+        $shortened = mb_substr($text, 0, $maxLength);
+        $lastSpace = mb_strrpos($shortened, ' ');
+        if ($lastSpace !== false) {
+            $shortened = mb_substr($shortened, 0, $lastSpace);
+        }
+
+        // Step 2: drop punctuation left at the end (such as a comma) before adding "…"
+        $shortened = rtrim($shortened, ' ,;:-–');
+        return $shortened . '…';
     }
 
     // Strip an instructor's own manual ordering prefix from a module/page title

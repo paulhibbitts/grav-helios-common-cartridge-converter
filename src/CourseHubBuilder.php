@@ -405,7 +405,7 @@ class CourseHubBuilder
         }
 
         $title    = Helpers::yamlEscape($this->cleanTitle($mod['title']));
-        $desc     = $landingBody ? Helpers::yamlEscape(Helpers::shortDescription($this->converter->toPlainText($landingHtml ?: ''))) : '';
+        $desc     = $landingBody ? Helpers::yamlEscape(Helpers::shortDescription($this->descriptionText($landingHtml ?: ''))) : '';
         $extras   = $desc ? ["description: '$desc'"] : [];
         $fm       = $this->pageFrontmatter($title, $extras);
         $this->addFile("$base/course-page.md", $fm . trim($landingBody) . "\n");
@@ -419,6 +419,41 @@ class CourseHubBuilder
         }
 
         $this->trackDropped($mod);
+    }
+
+    // The plain text for a module's card description: the text of the page's paragraphs (<p>) only.
+    // Everything else would be joined into run-on words: the page title from the document's <head>,
+    // headings, and lists such as a tab menu ("Canvas Overview Global Navigation Dashboard Sidebar
+    // The Global Navigation Menu…"). A page with no paragraphs falls back to all of its text
+    private function descriptionText(string $html): string
+    {
+        if (trim($html) === '') {
+            return '';
+        }
+
+        // Step 1: read the page (the meta tag keeps accented letters and emoji intact)
+        $dom = new \DOMDocument();
+        libxml_use_internal_errors(true); // Canvas HTML often isn't perfectly formed; ignore warnings
+        $dom->loadHTML('<?xml encoding="utf-8"?>' . $html);
+        libxml_clear_errors();
+
+        // Step 2: collect the text of each paragraph that has some (toPlainText also turns a
+        // non-breaking space into a normal one, so a paragraph holding only &nbsp; counts as empty)
+        $paragraphs = [];
+        foreach ($dom->getElementsByTagName('p') as $paragraph) {
+            $text = $this->converter->toPlainText($paragraph->textContent);
+            if ($text !== '') {
+                $paragraphs[] = $text;
+            }
+        }
+
+        // Step 3: no paragraphs, so use all of the page's text (without the <head> title)
+        if (count($paragraphs) === 0) {
+            $withoutHead = preg_replace('#<head[^>]*>.*?</head>#is', ' ', $html);
+            return $this->converter->toPlainText($withoutHead);
+        }
+
+        return $this->converter->toPlainText(implode(' ', $paragraphs));
     }
 
     private function buildChildPage(string $moduleBase, array $item, int $n, string $modTitle): void
