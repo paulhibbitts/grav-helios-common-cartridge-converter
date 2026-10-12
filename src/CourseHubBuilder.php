@@ -384,6 +384,8 @@ class CourseHubBuilder
             if ($only['type'] === 'WikiPage') {
                 $childHtml   = $this->getWikiHtml($only);
                 $landingBody = $childHtml ? $this->convertAndCollectImages($childHtml, $base) : '';
+                // the module's card description then comes from this page too
+                $landingHtml = $childHtml;
                 $this->registerRoute($only['slug'], "$base/course-page.md");
                 $childItems  = [];
             } elseif ($only['type'] === 'ExternalUrl') {
