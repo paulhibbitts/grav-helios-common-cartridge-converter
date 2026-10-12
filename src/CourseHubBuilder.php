@@ -485,6 +485,16 @@ class CourseHubBuilder
         $path      = "$moduleBase/$folder/course-page.md";
         $title   = Helpers::yamlEscape($cleanedTitle);
         $extras  = $item['group'] ? ["group: '" . Helpers::yamlEscape($item['group']) . "'"] : [];
+
+        // A page's card (under "In this module") gets the same kind of description as a module's,
+        // so it isn't left to Grav's automatic summary, which is cut short and includes headings
+        if ($item['type'] === 'WikiPage') {
+            $pageDescription = $this->cardDescription($this->getWikiHtml($item));
+            if ($pageDescription !== '') {
+                $extras[] = "description: '" . Helpers::yamlEscape($pageDescription) . "'";
+            }
+        }
+
         $fm      = $this->pageFrontmatter($title, $extras);
 
         if ($item['type'] === 'WikiPage') {
