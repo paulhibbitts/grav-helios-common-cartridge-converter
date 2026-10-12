@@ -23,7 +23,7 @@ class CourseHubBuilder
     private bool   $portableMarkdown;
     private string $courseBase;           // e.g. "pages/my-course-2025", or "pages" for Open Course Hub
     private string $destination;          // 'helios', 'open-course-hub' or 'open-multicourse-hub'
-    private string $modulesFolder;        // "30.modules", or "07.modules" for Open Course Hub
+    private string $modulesFolder;        // "30.modules", or "03.modules" for Open Course Hub
     private array $pendingImages   = []; // ['pageFolder', 'filename', 'localPath'|null, 'url'|null]
     private array $imageData       = []; // zipPath => binary string (populated by downloadPendingImages)
     private int   $imageFailures   = 0;
@@ -71,7 +71,7 @@ class CourseHubBuilder
         // addresses have none either), and the same folder name as the skeleton's Modules sample
         if ($this->destination === 'open-course-hub') {
             $this->courseBase    = 'pages';
-            $this->modulesFolder = '07.modules';
+            $this->modulesFolder = '03.modules';
         } else {
             $this->courseBase    = 'pages/' . $parser->courseSlug;
             $this->modulesFolder = '30.modules';
@@ -514,7 +514,7 @@ class CourseHubBuilder
                 $filename = str_replace(':', '-', basename($filePath));
 
                 // Step 1: the folder the files go in. Only the Modules folder is copied into an
-                // Open Course Hub site, so there the files go inside it (pages/07.modules/files/);
+                // Open Course Hub site, so there the files go inside it (pages/03.modules/files/);
                 // otherwise they're in the course folder (pages/my-course/files/)
                 if ($this->destination === 'open-course-hub') {
                     $filesParent = "$this->courseBase/$this->modulesFolder";
@@ -669,10 +669,12 @@ class CourseHubBuilder
 
         $addHeader('Next Steps');
         if ($this->destination === 'open-course-hub') {
-            $lines[] = '  1. Copy the 07.modules folder from inside the extracted pages folder into';
-            $lines[] = '     your Open Course Hub site\'s user/pages/ directory (replacing the sample';
-            $lines[] = '     Modules folder, if your site has one). To move Modules in the menu, change';
-            $lines[] = '     the folder\'s number (02.modules puts it first); its page addresses stay the same';
+            $lines[] = '  1. Copy the 03.modules folder from inside the extracted pages folder into';
+            $lines[] = '     your Open Course Hub site\'s user/pages/ directory, replacing the site\'s';
+            $lines[] = '     existing Modules folder if it has one (such as 03.modules, or 07.modules on';
+            $lines[] = '     sites from Open Course Hub 4.6), so there is only one. To move Modules in the';
+            $lines[] = '     menu, change the folder\'s number (01.modules puts it first); its page';
+            $lines[] = '     addresses stay the same';
             if (isset($this->files['syllabus/course-page.md'])) {
                 $lines[] = '  2. The course syllabus is in the syllabus folder: copy its content (and any';
                 $lines[] = '     images) into your site\'s Syllabus page';

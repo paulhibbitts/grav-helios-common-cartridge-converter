@@ -187,7 +187,7 @@ function collectPreviewPages(array $files, array $imageData, int $minLength): ar
 
     $candidatesByModule = [];
     foreach ($files as $path => $content) {
-        if (!preg_match('#/\d+\.modules/#', $path) || !str_ends_with($path, 'course-page.md')) { // 30.modules, or 07.modules for Open Course Hub
+        if (!preg_match('#/\d+\.modules/#', $path) || !str_ends_with($path, 'course-page.md')) { // 30.modules, or 03.modules for Open Course Hub
             continue;
         }
 
