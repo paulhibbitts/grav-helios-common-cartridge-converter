@@ -407,7 +407,7 @@ class CourseHubBuilder
         }
 
         $title    = Helpers::yamlEscape($this->cleanTitle($mod['title']));
-        $desc     = $landingBody ? Helpers::yamlEscape(Helpers::shortDescription($this->descriptionText($landingHtml ?: ''))) : '';
+        $desc     = $landingBody ? Helpers::yamlEscape($this->cardDescription($landingHtml ?: '')) : '';
         $extras   = $desc ? ["description: '$desc'"] : [];
         $fm       = $this->pageFrontmatter($title, $extras);
         $this->addFile("$base/course-page.md", $fm . trim($landingBody) . "\n");
@@ -423,11 +423,15 @@ class CourseHubBuilder
         $this->trackDropped($mod);
     }
 
-    // The plain text for a module's card description: the text of the page's paragraphs (<p>) only.
-    // Everything else would be joined into run-on words: the page title from the document's <head>,
-    // headings, and lists such as a tab menu ("Canvas Overview Global Navigation Dashboard Sidebar
-    // The Global Navigation Menu…"). A page with no paragraphs falls back to all of its text
-    private function descriptionText(string $html): string
+    // A module's card description: the page's first real paragraph (<p>) in full, so it never ends
+    // mid-sentence; the course hub's own setting decides how many lines show (2, 3, or no limit).
+    // A "real" paragraph has at least 60 characters and doesn't end with a colon, which skips
+    // labels and lead-ins such as "Main author: …", "Link" or "The blue belt focuses on:".
+    // Only paragraph text is used, as everything else would be joined into run-on words: the page
+    // title from the document's <head>, headings, and lists such as a tab menu ("Canvas Overview
+    // Global Navigation Dashboard Sidebar…"). A page with no paragraphs, such as one that's just a
+    // table, falls back to the start of all its text instead
+    private function cardDescription(string $html): string
     {
         if (trim($html) === '') {
             return '';
@@ -439,23 +443,32 @@ class CourseHubBuilder
         $dom->loadHTML('<?xml encoding="utf-8"?>' . $html);
         libxml_clear_errors();
 
-        // Step 2: collect the text of each paragraph that has some (toPlainText also turns a
+        // Step 2: go through the paragraphs, returning the first real one, and remembering the
+        // first one with any text in case there's no real one (toPlainText also turns a
         // non-breaking space into a normal one, so a paragraph holding only &nbsp; counts as empty)
-        $paragraphs = [];
+        $minimumLength = 60;
+        $firstParagraph = '';
         foreach ($dom->getElementsByTagName('p') as $paragraph) {
             $text = $this->converter->toPlainText($paragraph->textContent);
-            if ($text !== '') {
-                $paragraphs[] = $text;
+            if ($text === '') {
+                continue;
+            }
+            if ($firstParagraph === '') {
+                $firstParagraph = $text;
+            }
+            $isLongEnough = mb_strlen($text) >= $minimumLength;
+            $endsWithColon = str_ends_with($text, ':');
+            if ($isLongEnough && !$endsWithColon) {
+                return $text;
             }
         }
-
-        // Step 3: no paragraphs, so use all of the page's text (without the <head> title)
-        if (count($paragraphs) === 0) {
-            $withoutHead = preg_replace('#<head[^>]*>.*?</head>#is', ' ', $html);
-            return $this->converter->toPlainText($withoutHead);
+        if ($firstParagraph !== '') {
+            return $firstParagraph;
         }
 
-        return $this->converter->toPlainText(implode(' ', $paragraphs));
+        // Step 3: no paragraphs at all, so use the start of all the page's text (without the <head> title)
+        $withoutHead = preg_replace('#<head[^>]*>.*?</head>#is', ' ', $html);
+        return Helpers::shortDescription($this->converter->toPlainText($withoutHead));
     }
 
     private function buildChildPage(string $moduleBase, array $item, int $n, string $modTitle): void

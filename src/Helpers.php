@@ -31,10 +31,9 @@ class Helpers
         return sprintf('%02d', $n) . '.' . $slug;
     }
 
-    // Derive a card description from plain text: up to about 300 characters, ending at a whole
-    // word with "…" when shortened. It's longer than a card usually shows, as the course hub's own
-    // setting decides how many lines appear (2, 3, or no limit). Counts characters, not bytes
-    // (mb_ functions), so an accented letter or emoji is never cut in half
+    // Shorten plain text to about 300 characters, ending at a whole word with "…" (used for a card
+    // description when a page has no paragraphs). Counts characters, not bytes (mb_ functions),
+    // so an accented letter or emoji is never cut in half
     public static function shortDescription(string $text): string
     {
         $maxLength = 300;
