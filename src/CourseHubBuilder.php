@@ -279,7 +279,7 @@ class CourseHubBuilder
 
         if (!$mod) {
             $fm = $this->pageFrontmatter('Home', [], true);
-            $this->addFile("$base/course-page.md", $fm . $this->conversionNotice());
+            $this->addFile("$base/course-page.md", $fm . $this->withTitleHeading('Home', '') . $this->conversionNotice());
             return;
         }
 
@@ -291,7 +291,16 @@ class CourseHubBuilder
 
         $title = Helpers::yamlEscape($this->cleanTitle($mod['title']));
         $fm    = $this->pageFrontmatter($title, [], true);
-        $this->addFile("$base/course-page.md", $fm . $this->conversionNotice() . trim($landingBody) . "\n");
+        // the title first, then the conversion notice, then the page's content; as on other pages, a
+        // heading the content already starts with becomes the title (Helios only, see withTitleHeading)
+        $homeBody    = $this->withTitleHeading($this->cleanTitle($mod['title']), trim($landingBody));
+        $homeHeading = '';
+        if ($this->destination === 'helios') {
+            $firstLine   = strtok($homeBody, "\n");
+            $homeHeading = $firstLine . "\n\n";
+            $homeBody    = ltrim(substr($homeBody, strlen($firstLine)));
+        }
+        $this->addFile("$base/course-page.md", $fm . $homeHeading . $this->conversionNotice() . trim($homeBody) . "\n");
         $this->pageCount++;
 
         $childN = 1;
@@ -349,6 +358,7 @@ class CourseHubBuilder
 
         $title = Helpers::yamlEscape($this->cleanTitle($mod['title']));
         $fm    = $this->pageFrontmatter($title, [], true);
+        $landingBody = $this->withTitleHeading($this->cleanTitle($mod['title']), trim($landingBody));
         $this->addFile("$base/course-page.md", $fm . trim($landingBody) . "\n");
         $this->pageCount++;
 
@@ -410,6 +420,7 @@ class CourseHubBuilder
         $desc     = $landingBody ? Helpers::yamlEscape($this->cardDescription($landingHtml ?: '')) : '';
         $extras   = $desc ? ["description: '$desc'"] : [];
         $fm       = $this->pageFrontmatter($title, $extras);
+        $landingBody = $this->withTitleHeading($this->cleanTitle($mod['title']), trim($landingBody));
         $this->addFile("$base/course-page.md", $fm . trim($landingBody) . "\n");
         $this->pageCount++;
 
@@ -544,6 +555,7 @@ class CourseHubBuilder
             $body = '';
         }
 
+        $body = $this->withTitleHeading($cleanedTitle, trim($body));
         $this->addFile($path, $fm . trim($body) . "\n");
         $this->pageCount++;
     }
@@ -571,6 +583,7 @@ class CourseHubBuilder
 
         $body .= "> [!TIP]\n> Add a course description, instructor name(s), and contact information here.\n";
 
+        $body = $this->withTitleHeading('Essentials', $body);
         $this->addFile("$base/course-page.md", $fm . $body);
     }
 
@@ -582,9 +595,11 @@ class CourseHubBuilder
 
         if ($html && strlen(strip_tags($html)) >= 10) {
             $body = $this->convertAndCollectImages($html, $base);
+            $body = $this->withTitleHeading('Syllabus', trim($body));
             $this->addFile("$base/course-page.md", $fm . trim($body) . "\n");
         } else {
-            $this->addFile("$base/course-page.md", $fm . "> [!TIP]\n> Add syllabus content here.\n");
+            $body = $this->withTitleHeading('Syllabus', "> [!TIP]\n> Add syllabus content here.\n");
+            $this->addFile("$base/course-page.md", $fm . $body);
         }
     }
 
@@ -601,7 +616,8 @@ class CourseHubBuilder
     {
         $base = "$this->courseBase/40.resources";
         $fm   = $this->pageFrontmatter('Resources', [], true);
-        $this->addFile("$base/course-page.md", $fm . "> [!TIP]\n> Add course resources, links, and reference materials here.\n");
+        $body = $this->withTitleHeading('Resources', "> [!TIP]\n> Add course resources, links, and reference materials here.\n");
+        $this->addFile("$base/course-page.md", $fm . $body);
     }
 
     private function buildConversionNotes(): void
@@ -1102,6 +1118,29 @@ class CourseHubBuilder
             }
         }
         return [$landingItem, $childItems];
+    }
+
+    // Grav Helios Course Hub doesn't show a page's title by itself: as in the Helios skeleton, each page's
+    // content starts with a "# Title" heading. Open Course Hub and Open MultiCourse Hub (Bootstrap4 Open
+    // Matter) show the title automatically, so the heading is only added for Helios.
+    private function withTitleHeading(string $title, string $body): string
+    {
+        if ($this->destination !== 'helios') {
+            return $body;
+        }
+
+        // Canvas pages sometimes already start with their own title as a heading (often "## Title");
+        // that heading then becomes the page's "# Title", rather than the title appearing twice
+        $body = ltrim($body);
+        $firstLine = strtok($body, "\n");
+        if ($firstLine !== false && preg_match('/^#{1,6}\s+(.+)$/', $firstLine, $match)) {
+            if (strcasecmp(trim($match[1]), trim($title)) === 0) {
+                $rest = substr($body, strlen($firstLine));
+                return "# " . trim($match[1]) . $rest;
+            }
+        }
+
+        return "# $title\n\n" . $body;
     }
 
     // Build a standard Grav page frontmatter block
