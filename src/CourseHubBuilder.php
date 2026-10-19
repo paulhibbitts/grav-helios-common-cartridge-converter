@@ -173,8 +173,14 @@ class CourseHubBuilder
         }
 
         $desc = $this->parser->courseTitle ? "\ndescription: '" . Helpers::yamlEscape($this->parser->courseTitle) . "'" : '';
+        // the course image, which createZip() puts beside course.md, as the course card's image (Card
+        // Image in Admin); turn on Show Card Image in Course Sidebar to show it in the sidebar too
+        $image = '';
+        if ($this->parser->courseImagePath && file_exists($this->parser->courseImagePath)) {
+            $image = "\nimage: '" . Helpers::yamlEscape(basename($this->parser->courseImagePath)) . "'";
+        }
         $body = "Use the Admin Panel Editor (or page frontmatter) to set the icon, description, and published status of this course's card on the Courses homepage.";
-        $yaml = "---\npublished: true\nroutable: false$desc\n---\n\n$body\n";
+        $yaml = "---\npublished: true\nroutable: false$desc$image\n---\n\n$body\n";
         $this->addFile("$this->courseBase/course.md", $yaml);
     }
 
@@ -183,7 +189,7 @@ class CourseHubBuilder
     // file itself is added in createZip()
     private function buildHeaderImagePage(): void
     {
-        // Helios uses course_image instead, and an Open Course Hub site already has its own
+        // Helios puts the image beside course.md instead, and an Open Course Hub site already has its own
         // headerimage page (only the image file is exported, to swap in; see createZip())
         if ($this->destination !== 'open-multicourse-hub') return;
         if (!$this->parser->courseImagePath) return;
@@ -196,11 +202,12 @@ class CourseHubBuilder
 
     // The folder the course image goes in: headerimage for Bootstrap4 Open Matter (pages/headerimage
     // for an Open Course Hub site, or the course's own headerimage folder in an Open MultiCourse Hub),
-    // or course_image for Helios
+    // or, for Helios, the course folder itself, beside course.md: Helios Course Hub only finds a course
+    // card (and sidebar) image among the course folder's own files, named by course.md's image setting
     private function courseImageFolder(): string
     {
         if ($this->destination === 'helios') {
-            return "$this->courseBase/course_image";
+            return $this->courseBase;
         }
         return "$this->courseBase/headerimage";
     }
