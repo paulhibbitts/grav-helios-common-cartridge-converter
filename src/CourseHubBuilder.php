@@ -627,6 +627,22 @@ class CourseHubBuilder
         $this->addFile("$base/course-page.md", $fm . $body);
     }
 
+    // The name Bootstrap4 Open Matter's CC License Type setting uses for a course license (such
+    // as "CC BY-NC 4.0"), for Open Course Hub's Next Steps; '' when the theme has no such option
+    // (such as Public Domain)
+    private static function openMatterLicenseName(string $license): string
+    {
+        $names = [
+            'CC BY 4.0'       => 'CC Attribution',
+            'CC BY-SA 4.0'    => 'CC Attribution Share Alike',
+            'CC BY-ND 4.0'    => 'CC Attribution No Derivatives',
+            'CC BY-NC 4.0'    => 'CC Attribution Non-Commercial',
+            'CC BY-NC-SA 4.0' => 'CC Attribution Non-Commercial Share Alike',
+            'CC BY-NC-ND 4.0' => 'CC Attribution Non-Commercial No Derivatives',
+        ];
+        return $names[$license] ?? '';
+    }
+
     private function buildConversionNotes(): void
     {
         $p    = $this->parser;
@@ -690,31 +706,85 @@ class CourseHubBuilder
         }
         $lines[] = '';
 
+        // Wiki pages that no module links to aren't converted (Canvas keeps every page a course
+        // has ever had), so name them here, in case one is still wanted
+        if (!empty($p->unlinkedPages)) {
+            $addHeader('Pages Not in Any Module');
+            $lines[] = '  These pages are in the export but not in any module, so they were left';
+            $lines[] = '  out (Canvas keeps every page a course has had, including old drafts). To';
+            $lines[] = '  include one, add it to a module in your LMS and export again, or copy its';
+            $lines[] = '  text into a page by hand:';
+            foreach ($p->unlinkedPages as $unlinkedPage) {
+                $state = '';
+                if ($unlinkedPage['frontPage']) {
+                    $state = ' (the course\'s Canvas home page)';
+                } elseif (!$unlinkedPage['published']) {
+                    $state = ' (unpublished)';
+                }
+                $lines[] = '  - ' . $unlinkedPage['title'] . $state;
+            }
+            $lines[] = '';
+        }
+
         $addHeader('Next Steps');
         if ($this->destination === 'open-course-hub') {
-            $lines[] = '  1. Copy the 03.modules folder from inside the extracted pages folder into';
-            $lines[] = '     your Open Course Hub site\'s user/pages/ directory, replacing the site\'s';
-            $lines[] = '     existing Modules folder if it has one (such as 03.modules, or 07.modules on';
-            $lines[] = '     sites from Open Course Hub 4.6), so there is only one. To move Modules in the';
-            $lines[] = '     menu, change the folder\'s number (01.modules puts it first); its page';
-            $lines[] = '     addresses stay the same';
+            // Each step is a list of lines; they're numbered below, so a step can be left out
+            // (such as the syllabus one, when there is no syllabus) without a gap in the numbers
+            $steps = [];
+            $steps[] = [
+                'Copy the 03.modules folder from inside the extracted pages folder into',
+                'your Open Course Hub site\'s user/pages/ directory, replacing the site\'s',
+                'existing Modules folder if it has one (such as 03.modules, or 07.modules on',
+                'sites from Open Course Hub 4.6), so there is only one. To move Modules in the',
+                'menu, change the folder\'s number (01.modules puts it first); its page',
+                'addresses stay the same',
+            ];
             if (isset($this->files['syllabus/course-page.md'])) {
-                $lines[] = '  2. The course syllabus is in the syllabus folder: copy its content (and any';
-                $lines[] = '     images) into your site\'s Syllabus page';
-            } else {
-                $lines[] = '  2. (No syllabus content was found to copy)';
+                $steps[] = [
+                    'The course syllabus is in the syllabus folder: copy its content (and any',
+                    'images) into your site\'s Syllabus page',
+                ];
             }
             $courseImageFile = '';
             if ($this->parser->courseImagePath && file_exists($this->parser->courseImagePath)) {
                 $courseImageFile = basename($this->parser->courseImagePath);
             }
             if ($courseImageFile) {
-                $lines[] = '  3. To use the course image as the site\'s header image, put ' . $courseImageFile;
-                $lines[] = '     (in the headerimage folder) in your site\'s user/pages/headerimage/ folder,';
-                $lines[] = '     in place of the image already there';
-                $lines[] = '  4. Review this file for any warnings or manual fixes needed';
-            } else {
-                $lines[] = '  3. Review this file for any warnings or manual fixes needed';
+                $steps[] = [
+                    'To use the course image as the site\'s header image, put ' . $courseImageFile,
+                    '(in the headerimage folder) in your site\'s user/pages/headerimage/ folder,',
+                    'in place of the image already there',
+                ];
+            }
+            // An Open Course Hub site is the course, so it has no Essentials page for the
+            // course's title and license: they go in the site's own settings instead
+            if ($p->courseTitle) {
+                $steps[] = [
+                    'Set the site\'s title to the course title, "' . $p->courseTitle . '",',
+                    'in Configuration → Site (Site Title); it\'s shown in the NavBar',
+                ];
+            }
+            $openMatterLicense = self::openMatterLicenseName($p->license);
+            if ($openMatterLicense) {
+                $steps[] = [
+                    'To show the course license (' . $p->license . ') on every page, turn on',
+                    'Display CC License and set CC License Type to "' . $openMatterLicense . '"',
+                    'in Themes → Bootstrap4 Open Matter (Open Matter Options tab)',
+                ];
+            } elseif ($p->license) {
+                $steps[] = [
+                    'Add the course license (' . $p->license . ') to the site, for example on',
+                    'its Syllabus page',
+                ];
+            }
+            $steps[] = ['Review this file for any warnings or manual fixes needed'];
+
+            foreach ($steps as $number => $stepLines) {
+                foreach ($stepLines as $lineNumber => $stepLine) {
+                    // the first line gets the step's number; the rest line up under its text
+                    $prefix = $lineNumber === 0 ? '  ' . ($number + 1) . '. ' : '     ';
+                    $lines[] = $prefix . $stepLine;
+                }
             }
         } elseif ($this->destination === 'open-multicourse-hub') {
             $lines[] = '  1. Copy the course folder from inside the extracted pages folder into';

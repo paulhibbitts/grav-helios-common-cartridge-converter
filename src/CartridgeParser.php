@@ -17,6 +17,11 @@ class CartridgeParser
     // wiki slug => html string
     public array $wikiPages = [];
 
+    // Wiki pages (from wiki_content/) that no module links to, so they aren't converted:
+    // each is ['title' => string, 'published' => bool, 'frontPage' => bool], listed in the
+    // conversion notes
+    public array $unlinkedPages = [];
+
     // Absolute path to a local course image file (from web_resources/course_image/)
     public string $courseImagePath = '';
 
@@ -58,6 +63,7 @@ class CartridgeParser
         $this->computeCourseSlug();
         $this->parseModules();
         $this->loadWikiPages();
+        $this->findUnlinkedPages();
         $this->addOrphanedWikiPages();
         $this->parseSyllabus();
     }
@@ -483,6 +489,44 @@ class CartridgeParser
         // Also load non-Canvas "webcontent" pages found outside wiki_content/
         foreach ($this->webPagePaths as $slug => $path) {
             $this->wikiPages[$slug] = file_get_contents($path);
+        }
+    }
+
+    // Lists the wiki pages that no module links to, so the conversion notes can name them
+    // (they aren't converted: see addOrphanedWikiPages() below for why). Only when the course
+    // has modules: with none, addOrphanedWikiPages() converts every page instead
+    private function findUnlinkedPages(): void
+    {
+        if (empty($this->modules)) return;
+
+        // the wiki page slugs that module items link to
+        $linkedSlugs = [];
+        foreach ($this->modules as $module) {
+            foreach ($module['items'] as $item) {
+                if (!empty($item['slug'])) $linkedSlugs[$item['slug']] = true;
+            }
+        }
+
+        // only real wiki pages (wiki_content/*.html), not assignments or other content pages
+        $wikiDir = $this->dir . '/wiki_content';
+        if (!is_dir($wikiDir)) return;
+        foreach (glob($wikiDir . '/*.html') ?: [] as $file) {
+            $slug = pathinfo($file, PATHINFO_FILENAME);
+            if (isset($linkedSlugs[$slug])) continue;
+            $html = $this->wikiPages[$slug] ?? '';
+            // Canvas marks each page's state in a meta tag: "active" is published,
+            // "unpublished" is a draft
+            $published = true;
+            if (preg_match('/<meta\s+name="workflow_state"\s+content="([^"]*)"/i', $html, $m)) {
+                $published = ($m[1] !== 'unpublished');
+            }
+            // and marks the page a course opens on (its home page) as its front page
+            $frontPage = (bool) preg_match('/<meta\s+name="front_page"\s+content="true"/i', $html);
+            $this->unlinkedPages[] = [
+                'title'     => $this->extractHtmlTitle($html) ?: Helpers::titleFromSlug($slug),
+                'published' => $published,
+                'frontPage' => $frontPage,
+            ];
         }
     }
 
