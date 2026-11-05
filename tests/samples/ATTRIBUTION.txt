@@ -1,0 +1,10 @@
+Sample Common Cartridge course exports used by tests/check.php. Each keeps its own licence (not the converter's).
+Both were shared on Canvas Commons (https://community.instructure.com/en/kb/articles/664537-how-do-i-use-commons).
+They are smaller copies: images were shrunk and other large files (PDFs, videos …) replaced with a short placeholder
+of the same name – the converter only copies these files, so the converted text is the same as for the full exports.
+
+introduction-to-teaching-online.imscc
+  Introduction to Teaching Online – licensed CC BY-NC 4.0 (some parts CC BY-NC-SA 4.0), as stated in the course
+
+digital-animation.imscc
+  GPV – Digital Animation, by D. Ingram – CC BY-NC 4.0, as stated in the course

@@ -1,0 +1,58 @@
+Common Cartridge Conversion Notes
+=================================
+Generated: DATE
+
+Course Metadata
+---------------
+  Title:   GPV - Digital Animation (D. Ingram)
+  Code:    ANIM8
+  License: CC BY-NC 4.0
+  License URL: https://creativecommons.org/licenses/by-nc/4.0/
+  Course image: pages/COURSE-SLUG/headerimage/robot-banner-01.jpg
+
+Structure
+---------
+  Modules:    5
+  Wiki pages: 28
+  Pages created: 15
+  Images: 5 local (included in ZIP); external images use remote URLs
+
+Dropped Content
+---------------
+  DiscussionTopic                1
+
+  Total dropped items: 1
+
+Pages Not in Any Module
+-----------------------
+  These pages are in the export but not in any module, so they were left
+  out (Canvas keeps every page a course has had, including old drafts). To
+  include one, add it to a module in your LMS and export again, or copy its
+  text into a page by hand:
+  - Opportunities
+
+Next Steps
+----------
+  1. Copy the course folder from inside the extracted pages folder into
+     your Open MultiCourse Hub site's user/pages/ directory
+  2. To set its place in the course list, add a number to the front of the
+     folder name (such as 05.), and set its description in subsite.md
+  3. Review this file for any warnings or manual fixes needed
+
+Conversion Settings
+-------------------
+  Destination:     Open MultiCourse Hub
+  Format:          Course hub (shortcodes + full frontmatter)
+  Attached files:  skipped
+  Image download:  skipped — images kept as remote URLs
+  Numbered titles: cleaned up (leading numbering stripped)
+  Essentials page: included
+  Resources page:  included
+  Syllabus page:   included
+
+Known Limitations
+-----------------
+  - Quizzes and discussions are not supported and have been dropped.
+  - Internal Canvas page links are rewritten to the converted page when the target is included in this course; otherwise the link points to "#" as a placeholder.
+  - LTI tool links appear as plain links to the original tool; authentication context is not preserved.
+

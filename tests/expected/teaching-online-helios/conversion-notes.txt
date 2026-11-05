@@ -1,0 +1,71 @@
+Common Cartridge Conversion Notes
+=================================
+Generated: DATE
+
+Course Metadata
+---------------
+  Title:   Introduction to Teaching Online
+  Code:    Introduction to Teaching Online
+  License: CC BY-NC-SA 4.0
+  License URL: https://creativecommons.org/licenses/by-nc-sa/4.0/
+  Course image: https://images.unsplash.com/photo-1531297484001-80022131f5a1?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjc1NjI5fQ&utm_medium=referral&utm_source=canvas-prod&w=262&h=146&crop=faces%2Centropy&fit=crop&fm=jpg&cs=tinysrgb&q=80 (external URL — not included in ZIP)
+
+Structure
+---------
+  Modules:    8
+  Wiki pages: 43
+  Pages created: 40
+  Images: 6 local (included in ZIP); external images use remote URLs
+  External URLs:  1 (converted to Markdown links)
+  Attachments:    12 (not included)
+
+Dropped Content
+---------------
+  DiscussionTopic                6
+  Quizzes::Quiz                  2
+  ContextExternalTool            1
+
+  Total dropped items: 9
+
+Pages Not in Any Module
+-----------------------
+  These pages are in the export but not in any module, so they were left
+  out (Canvas keeps every page a course has had, including old drafts). To
+  include one, add it to a module in your LMS and export again, or copy its
+  text into a page by hand:
+  - ✍Assessment strategies - pre-assessment
+  - Competencies 1
+  - Effective online Instructional approaches
+  - Effective rubrics
+  - Effective teaching strategies that I use
+  - Feedback and Communication
+  - Homepage (the course's Canvas home page)
+  - ✍Instructional approaches - pre-assessment
+  - Module template
+  - ✍Planning - pre-assessment
+  - ✍Reflections
+  - Selecting an online teaching method that is right for you - synchronous vs asynchronous methods.
+
+Next Steps
+----------
+  1. Copy the course folder from inside the extracted pages folder into
+     your Grav Helios Course Hub installation's user/pages/ directory
+  2. Review this file for any warnings or manual fixes needed
+
+Conversion Settings
+-------------------
+  Destination:     Grav Helios Course Hub
+  Format:          Course hub (shortcodes + full frontmatter)
+  Attached files:  skipped
+  Image download:  skipped — images kept as remote URLs
+  Numbered titles: cleaned up (leading numbering stripped)
+  Essentials page: included
+  Resources page:  included
+  Syllabus page:   included
+
+Known Limitations
+-----------------
+  - Quizzes and discussions are not supported and have been dropped.
+  - Internal Canvas page links are rewritten to the converted page when the target is included in this course; otherwise the link points to "#" as a placeholder.
+  - LTI tool links appear as plain links to the original tool; authentication context is not preserved.
+
